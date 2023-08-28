@@ -1,0 +1,229 @@
+---
+title: "Monthly Carbon Dioxide Time Series"
+author: "Alex Rodriguez"
+date: "2023-04-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data
+
+I chose the cardox data from the astsa package. This data is from 1958 to 2018 of Monthly Carbon Dioxide Levels at Mauna Loa.
+
+```{r}
+data(
+  list = "cardox",
+  package = "astsa"
+)
+```
+
+## Part A
+
+First I created a plot of the time series with a horizontal line for the sample mean of the data and a trend line from regression.
+
+```{r}
+sample_mean <- mean(cardox)
+
+lm_df <- lm(
+  formula = cardox~time(cardox)
+)
+summary(
+  object = lm_df
+)
+
+astsa::tsplot(
+  x = cardox,
+  ylab = "Carbon Dioxide Levels at Mauna Loa",
+  col = 4,
+  lwd = 1,
+  main = "Cardox Data"
+)
+abline(
+  h = sample_mean,
+  col = 2
+) 
+abline(
+  reg = lm_df,
+  col = 1
+) 
+legend("topleft", legend=c("Original Data", "Sample Mean", "Simple Linear Regression"), col=c("blue", "red", "black"), lwd=1:1:1, bty = "n")
+
+```
+
+Using the decompose function in R we can see the original time series, trend, seasonality, and randomness in the data.
+
+```{r}
+plot(decompose(cardox))
+```
+
+As we can see from the plots that there is a clear increasing trend and there also appears to be seasonality.
+
+Since the data has an increasing trend and has seasonality I will do 1 degree of non-seasonal differencing and 1 degree of seasonal differencing and see how the data looks after.
+
+```{r}
+diff_cardox <- diff(cardox, differences = 1)
+
+astsa::acf2(
+  series = diff_cardox
+)
+
+diff2_seasonal_cardox  = diff(
+  x = diff_cardox,
+  lag = 12
+)
+
+astsa::acf2(
+  series = diff2_seasonal_cardox
+)
+
+astsa::tsplot(
+  x = cbind(
+    cardox, diff_cardox, diff2_seasonal_cardox
+  ),
+  main = "Time series plots of differenced Cardox data"
+)
+
+```
+
+We can see after 1 degree of non-seasonal differencing and 1 degree of seasonal differencing that the time series plot looks stationary. We can also see that the ACF cuts off at 1 while the PACF seems to trail off with some indication that there is underlying seasonal trend.
+
+## Part 2
+
+A reasonable seasonal trend for my data is annual. Therefore, my seasonal period is year and the subinterval is month.
+
+First we can visualize the data with subinterval as the horizontal axis, and the observed value as the vertical axis. The first plot is the original data, then non-seasonal differencing, then lastly seasonal differencing.
+
+```{r}
+monthplot(
+  x = cardox
+)
+
+monthplot(
+  x = diff_cardox
+)
+
+monthplot(
+  x = diff2_seasonal_cardox
+)
+```
+
+Then we can visualize the data with the seasonal period as the horizontal axis, and observed value as the vertical axis. Here we have the orignal data.
+
+```{r}
+cardox_monthly_list <- split(cardox, f = cycle(cardox))
+
+# Set up the layout for the subplots
+par(mfrow = c(3, 4))
+
+# Loop through each month and create a separate plot
+for (i in 1:12) {
+  # Create a time series object for the current month
+  monthly_ts <- cardox_monthly_list[[i]]
+  
+  # Plot the monthly time series with the month names as the x-axis labels
+  astsa::tsplot(
+    x = monthly_ts,
+    xlab = "Year",
+    ylab = "CO2 Levels",
+    main = month.abb[i]
+  )
+}
+```
+
+Here the plots are updated after performing non-seasonal differencing and seasonal differencing on the data.
+
+```{r}
+diff2_cardox_monthly_list <- split(diff2_seasonal_cardox, f = cycle(diff2_seasonal_cardox))
+
+# Set up the layout for the subplots
+par(mfrow = c(3, 4))
+
+# Loop through each month and create a separate plot
+for (i in 1:12) {
+  # Create a time series object for the current month
+  monthly_ts <- diff2_cardox_monthly_list[[i]]
+  
+  # Plot the monthly time series with the month names as the x-axis labels
+  astsa::tsplot(
+    x = monthly_ts,
+    xlab = "Year",
+    ylab = "Differenced CO2 Levels",
+    main = month.abb[i]
+  )
+}
+```
+
+## PART 3
+
+Looking at the ACF and PACF I fit six seasonal autoregressive integrated models.
+
+ARIMA(1,1,0) x seasonal ARIMA(1,1,0)[12]
+
+```{r}
+fit1 <- astsa::sarima(cardox, p = 1, d = 1, q = 0,P = 1, D = 1, Q = 0, S = 12)
+fit1
+```
+
+ARIMA(1,1,0) x seasonal ARIMA(2,1,0)[12]
+
+```{r}
+fit2 <- astsa::sarima(cardox, p = 1, d = 1, q = 0,P = 2, D = 1, Q = 0, S = 12)
+fit2
+```
+
+ARIMA(3,1,0) x seasonal ARIMA(1,1,0)[12]
+
+```{r}
+fit3 <- astsa::sarima(cardox, p = 3, d = 1, q = 0,P = 1, D = 1, Q = 0, S = 12)
+fit3
+```
+
+ARIMA(0,1,1) x seasonal ARIMA(0,1,1)[12]
+
+```{r}
+fit4 <- astsa::sarima(cardox, p = 0, d = 1, q = 1,P = 0, D = 1, Q = 1, S = 12)
+fit4
+```
+
+ARIMA(1,1,1) x seasonal ARIMA(1,1,1)[12]
+
+```{r}
+fit5 <- astsa::sarima(cardox, p = 1, d = 1, q = 1,P = 1, D = 1, Q = 1, S = 12)
+fit5
+```
+
+ARIMA(1,1,1) x seasonal ARIMA(2,1,1)[12]
+
+```{r}
+fit6 <- astsa::sarima(cardox, p = 1, d = 1, q = 1,P = 2, D = 1, Q = 1, S = 12)
+fit6
+```
+
+```{r}
+fit6 <- astsa::sarima(cardox, p = 0, d = 1, q = 3,P = 0, D = 1, Q = 1, S = 12)
+fit6
+```
+
+## Part 4
+
+The first 3 fits have spikes in the ACF of Residuals and also have bad p-values for Ljung-Box statistic. Fits 4, 5 and 6 all are good models. However, fit 6 is the best model out of the rest with the lowest AIC and BIC values. We can also see from fit 6 model that all the plots have good results. The standardized residual plot shows no pattern and the ACF of residuals doesnt have any significant values. We can also see from the Q-Q plot that its approximately normal. Lastly, the p-values for Ljung Box statistic show no sign of autocorrelation.
+
+## Part 5
+
+Using the model selected above we can predict the future values for the next year.
+
+```{r}
+astsa::sarima.for(
+  xdata = cardox,
+  n.ahead = 12,
+  p = 0,d = 1,q = 3,
+  P = 0,D = 1,Q = 1,
+  S = 12
+)
+
+```
+
+To assess the quality of the model, we can visually inspect the fit of the model to the original data. The plot above shows that the model fits the data reasonably well, capturing both the overall trend and the seasonal fluctuations.We can also see that the standard errors of the prediction are low and relatively consistent to one another. This is a good indication that the model is a good quality model.
