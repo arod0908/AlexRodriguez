@@ -1,2 +1,6 @@
 # AlexRodriguez
-My Projects
+Data Scientist/Analyst Portfolio Project Repository
+
+I am a UCF grad with an M.S. in Statistics and Data Science.
+
+This is a Repository of Projects I've done for my courses or personal enjoyment. 
