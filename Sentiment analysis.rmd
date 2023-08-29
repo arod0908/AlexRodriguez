@@ -1,0 +1,118 @@
+---
+title: "Sentiment Analysis"
+author: "Alex Rodriguez"
+date: "March 30, 2022"
+output: html_document
+---
+
+# Prepare the text
+
+```{r}
+list_tweets <- lapply(
+  X = c(
+    "/Users/alexrodriguez/Desktop/Graduate Classes/Data Prep/Data/Biden tweets.csv",
+    "/Users/alexrodriguez/Desktop/Graduate Classes/Data Prep/Data/Trump tweets.csv"
+  ),
+  FUN = read.csv,
+  colClasses = "character"
+)
+tweets <- dplyr::bind_rows(list_tweets)
+tweets <- tweets[,c("screen_name","text")]
+tweets$text <- gsub(
+  x = tweets$text,
+  pattern = "\\W",
+  replacement = " "
+)
+tweets$text <- tolower(tweets$text)
+tweets$text <- gsub(
+  x = tweets$text,
+  pattern = "_",
+  replacement = " "
+)
+tweets$text <- gsub(
+  x = tweets$text,
+  pattern = "[0-9]",
+  replacement = " "
+)
+tweets$text <- gsub(
+  x = tweets$text,
+  pattern = "\\s+",
+  replacement = " "
+)
+tweets$text <- tm::removeWords(
+  x = tweets$text,
+  words = tm::stopwords(kind = "en")
+)
+tweets$text <- tm::removeWords(
+  x = tweets$text,
+  words = tm::stopwords(kind = "english")
+)
+tweets$text <- tm::removeWords(
+  x = tweets$text,
+  words = tm::stopwords(kind = "SMART")
+)
+tweets$text <- tm::removeWords(
+  x = tweets$text,
+  words = qdapDictionaries::Top200Words
+)
+tweets$text <- trimws(gsub(
+  x = tweets$text,
+  pattern = "\\s+",
+  replacement = " "
+))
+```
+
+# Sentiment analysis with syuzhet
+
+```{r}
+sentiment <- syuzhet::get_nrc_sentiment(tweets$text)
+head(sentiment)
+list_sentiment <- split(
+  x = sentiment,
+  f = tweets$screen_name
+)
+list_sentiment <- lapply(X = list_sentiment,FUN = colSums)
+levels_sentiment <- names(sort(list_sentiment[[1]] - list_sentiment[[2]]))
+for(j in names(list_sentiment)) list_sentiment[[j]] <- data.frame(screen_name = j,sentiment = names(list_sentiment[[j]]),count = list_sentiment[[j]],stringsAsFactors = FALSE)
+data_frame_sentiment <- dplyr::bind_rows(list_sentiment)
+data_frame_sentiment$sentiment <- factor(
+  x = data_frame_sentiment$sentiment,
+  levels = levels_sentiment
+)
+require(ggplot2)
+ggplot(data_frame_sentiment) + 
+  aes(x = screen_name,y = count,fill = screen_name,label = count) + 
+  geom_col() + 
+  geom_text(vjust = -1) + 
+  ggtitle("Bar plots of Twitter sentiment analysis") + 
+  facet_grid(~sentiment) + 
+  scale_fill_manual(values = c("blue","red")) + 
+  theme_bw() + 
+  theme(legend.position = "top",axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+# Sentiment analysis with qdap
+
+```{r}
+require(qdap)
+polarity_text <- qdap::polarity(
+  text.var = tweets$text,
+  grouping.var = tweets$screen_name
+)
+polarity_text
+summary(polarity_text$all$polarity)
+plot(polarity_text)
+M <- data.frame(
+  screen_name = tweets$screen_name,
+  polarity = polarity_text$all$polarity,
+  stringsAsFactors = FALSE
+)
+ggplot(M[M$polarity != 0 & !is.na(M$polarity),]) + 
+  aes(x = polarity,fill = screen_name) + 
+  geom_histogram() + 
+  facet_grid(~screen_name) + 
+  ggtitle("Histograms of Tweet Polarities") + 
+  scale_fill_manual(values = c("blue","red")) + 
+  theme_bw() + 
+  theme(legend.position = "top")
+```
